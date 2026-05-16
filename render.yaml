@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: avito-pulse-dashboard
+    env: node
+    plan: starter
+    buildCommand: ""
+    startCommand: "node server.js"
+    envVars:
+      - key: AVITO_CLIENT_ID
+        sync: false
+      - key: AVITO_CLIENT_SECRET
+        sync: false
+      - key: AVITO_USER_ID
+        sync: false
+      - key: AVITO_STATS_FROM
+        value: "2025-01-01"
+      - key: DASHBOARD_USER
+        sync: false
+      - key: DASHBOARD_PASSWORD
+        sync: false

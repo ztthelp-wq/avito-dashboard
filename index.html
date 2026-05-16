@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Avito Performance Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" aria-label="Навигация">
+        <div class="brand">
+          <span class="brand-mark">A</span>
+          <div>
+            <strong>Avito Pulse</strong>
+            <span>маркетинг и продажи</span>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <a class="active" href="#overview">Сводка</a>
+          <a href="#economics">Экономика</a>
+          <a href="#conversion">Конверсии</a>
+          <a href="#inventory">Объявления</a>
+          <a href="#items">По объявлениям</a>
+          <a href="#rating">Рейтинг</a>
+        </nav>
+
+        <div class="connection" id="connectionStatus">
+          <span></span>
+          Локальные данные
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="header">
+          <div>
+            <p class="eyebrow">Данные Avito</p>
+            <h1>Дашборд эффективности</h1>
+          </div>
+          <div class="filters" aria-label="Фильтры">
+            <label>
+              <span>Период</span>
+              <select id="periodFilter">
+                <option value="all">Авг 2025 - Апр 2026</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+              </select>
+            </label>
+            <label>
+              <span>Месяц</span>
+              <select id="monthFilter">
+                <option value="all">Все месяцы</option>
+              </select>
+            </label>
+            <label>
+              <span>Метрика графика</span>
+              <select id="chartMetric">
+                <option value="qualified">Контакты</option>
+                <option value="responses">Отклики</option>
+                <option value="views">Просмотры</option>
+                <option value="totalSpend">Расходы</option>
+              </select>
+            </label>
+          </div>
+        </header>
+
+        <section class="kpis" id="overview" aria-label="Ключевые показатели">
+          <article class="kpi">
+            <span>Контакты / кваллы</span>
+            <strong id="qualifiedTotal">0</strong>
+            <small id="qualifiedDelta">0%</small>
+          </article>
+          <article class="kpi">
+            <span>Просмотры</span>
+            <strong id="viewsTotal">0</strong>
+            <small id="viewsDelta">0%</small>
+          </article>
+          <article class="kpi">
+            <span>Отклики</span>
+            <strong id="responsesTotal">0</strong>
+            <small id="responsesDelta">0%</small>
+          </article>
+          <article class="kpi">
+            <span>Всего потрачено</span>
+            <strong id="spendTotal">0</strong>
+            <small id="spendPerQual">0 ₽ / квалл</small>
+          </article>
+        </section>
+
+        <section class="grid primary-grid">
+          <article class="panel wide" id="economics">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Динамика</p>
+                <h2 id="chartTitle">Контакты по месяцам</h2>
+              </div>
+              <div class="legend">
+                <span><i class="actual"></i>Факт</span>
+                <span><i class="average"></i>Среднее</span>
+              </div>
+            </div>
+            <div class="chart-box">
+              <canvas id="mainChart" width="1040" height="420"></canvas>
+            </div>
+          </article>
+
+          <article class="panel" id="conversion">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Конверсии</p>
+                <h2>Средние значения</h2>
+              </div>
+            </div>
+            <div class="conversion-list" id="conversionList"></div>
+          </article>
+        </section>
+
+        <section class="grid secondary-grid">
+          <article class="panel" id="inventory">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Объявления</p>
+                <h2>Активность витрины</h2>
+              </div>
+            </div>
+            <div class="split-metric">
+              <div>
+                <span>Всего объявлений</span>
+                <strong id="adsTotal">0</strong>
+              </div>
+              <div>
+                <span>Новых</span>
+                <strong id="newAdsTotal">0</strong>
+              </div>
+              <div>
+                <span>Старых</span>
+                <strong id="oldAdsTotal">0</strong>
+              </div>
+            </div>
+            <div class="bar-list" id="adsBars"></div>
+          </article>
+
+          <article class="panel" id="rating">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">Рейтинг</p>
+                <h2>Сервис и отзывы</h2>
+              </div>
+            </div>
+            <div class="rating-grid">
+              <div class="score-card">
+                <span>Уровень сервиса</span>
+                <strong id="serviceLevel">0</strong>
+              </div>
+              <div class="score-card">
+                <span>Балл рейтинга</span>
+                <strong id="ratingScore">0</strong>
+              </div>
+              <div class="score-card">
+                <span>Отзывы</span>
+                <strong id="reviewsTotal">0</strong>
+              </div>
+            </div>
+            <div class="activity" id="ratingRows"></div>
+          </article>
+        </section>
+
+        <section class="panel items-panel" id="items">
+          <div class="panel-head items-head">
+            <div>
+              <p class="eyebrow">Объявления</p>
+              <h2>Статистика по каждому объявлению</h2>
+            </div>
+            <div class="item-tools">
+              <label>
+                <span>Поиск</span>
+                <input id="itemSearch" type="search" placeholder="Название, адрес, ID" />
+              </label>
+              <button id="selectAllItems" type="button">Выбрать все</button>
+              <button id="clearSelection" type="button">Сбросить выбор</button>
+            </div>
+          </div>
+
+          <div class="selected-summary" id="selectedSummary">
+            <div>
+              <span>Выбрано</span>
+              <strong id="selectedCount">0</strong>
+            </div>
+            <div>
+              <span>Просмотры</span>
+              <strong id="selectedViews">0</strong>
+            </div>
+            <div>
+              <span>Контакты</span>
+              <strong id="selectedContacts">0</strong>
+            </div>
+            <div>
+              <span>Избранное</span>
+              <strong id="selectedFavorites">0</strong>
+            </div>
+            <div>
+              <span>CV</span>
+              <strong id="selectedConversion">0%</strong>
+            </div>
+            <div>
+              <span>Расход</span>
+              <strong id="selectedSpend">0 ₽</strong>
+            </div>
+          </div>
+
+          <div class="items-layout">
+            <div class="items-list" id="itemsList"></div>
+            <aside class="item-detail" id="itemDetail">
+              <span class="empty-state">Выберите объявление в списке</span>
+            </aside>
+          </div>
+        </section>
+
+        <section class="panel table-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Помесячно</p>
+              <h2>Таблица показателей</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Месяц</th>
+                  <th>Контакты</th>
+                  <th>Избранное</th>
+                  <th>Просмотры</th>
+                  <th>Отклики</th>
+                  <th>1-я смена</th>
+                  <th>Цена квалла</th>
+                  <th>Отклики</th>
+                  <th>Продвижение</th>
+                  <th>Всего</th>
+                  <th>CV отклик/квалл</th>
+                  <th>Объявления</th>
+                  <th>Сервис</th>
+                </tr>
+              </thead>
+              <tbody id="dataRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
