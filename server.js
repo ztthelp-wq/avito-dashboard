@@ -154,22 +154,37 @@ async function getUserId(token) {
 async function getAvitoItems(token) {
   const itemsById = new Map();
   const perPage = 99;
-  const statuses = ["active", "old"];
+  const statuses = [
+    { name: "active", maxPages: 20 },
+    { name: "old", maxPages: 10 },
+  ];
 
   for (const status of statuses) {
-    for (let page = 1; page <= 20; page += 1) {
-      const data = await avitoFetch(
-        `/core/v1/items?per_page=${perPage}&page=${page}&status=${status}`,
-        token,
-      );
+    for (let page = 1; page <= status.maxPages; page += 1) {
+      let data;
+
+      try {
+        data = await avitoFetch(
+          `/core/v1/items?per_page=${perPage}&page=${page}&status=${status.name}`,
+          token,
+        );
+      } catch (error) {
+        break;
+      }
+
       const pageItems = data.resources || data.items || [];
-      pageItems.forEach((item) => itemsById.set(Number(item.id), { ...item, status }));
+      pageItems.forEach((item) => itemsById.set(Number(item.id), { ...item, status: status.name }));
 
       if (pageItems.length < perPage) break;
+      await sleep(250);
     }
   }
 
   return [...itemsById.values()];
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function getStatsRange() {
