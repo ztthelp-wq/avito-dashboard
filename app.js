@@ -309,6 +309,7 @@ const costOverrides = JSON.parse(localStorage.getItem("avitoCostOverrides") || "
 const dailyStatsCache = new Map();
 const dailyStatsLoading = new Set();
 let dailyDays = 30;
+let dailyDate = "";
 
 function sum(list, key) {
   return list.reduce((total, row) => total + (Number(row[key]) || 0), 0);
@@ -677,7 +678,7 @@ function renderItemDetail(item) {
   }
 
   const cost = getItemCost(item);
-  const dailyKey = `${item.id}:${dailyDays}`;
+  const dailyKey = `${item.id}:${dailyDays}:${dailyDate}`;
   const dailyRows = dailyStatsCache.get(dailyKey);
   const daily = dailyRows
     ? renderDailyRows(dailyRows)
@@ -745,16 +746,22 @@ function renderItemDetail(item) {
       <div class="daily-head">
         <div>
           <span>Аналитика по дням</span>
-          <strong>Последние ${dailyDays} дней</strong>
+          <strong>${dailyDate ? formatDailyDateLong(dailyDate) : `Последние ${dailyDays} дней`}</strong>
         </div>
-        <label>
-          <span>Период</span>
-          <select data-daily-days>
-            ${[7, 30, 60, 90]
-              .map((days) => `<option value="${days}" ${days === dailyDays ? "selected" : ""}>${days} дней</option>`)
-              .join("")}
-          </select>
-        </label>
+        <div class="daily-controls">
+          <label>
+            <span>Период</span>
+            <select data-daily-days>
+              ${[7, 30, 60, 90]
+                .map((days) => `<option value="${days}" ${days === dailyDays ? "selected" : ""}>${days} дней</option>`)
+                .join("")}
+            </select>
+          </label>
+          <label>
+            <span>Конкретный день</span>
+            <input data-daily-date type="date" max="${new Date().toISOString().slice(0, 10)}" value="${dailyDate}" />
+          </label>
+        </div>
       </div>
       <div class="daily-table">
         <div class="daily-row daily-labels">
@@ -770,7 +777,7 @@ function renderItemDetail(item) {
     <div class="detail-months">${monthly}</div>
   `;
 
-  loadDailyStats(item.id, dailyDays);
+  loadDailyStats(item.id, dailyDays, dailyDate);
 }
 
 function renderDailyRows(rows) {
@@ -800,14 +807,24 @@ function formatDailyDate(value) {
   });
 }
 
-async function loadDailyStats(itemId, days) {
-  const key = `${itemId}:${days}`;
+function formatDailyDateLong(value) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+async function loadDailyStats(itemId, days, date = "") {
+  const key = `${itemId}:${days}:${date}`;
   if (dailyStatsCache.has(key) || dailyStatsLoading.has(key)) return;
 
   dailyStatsLoading.add(key);
 
   try {
-    const response = await fetch(`${apiBase}/api/items/${itemId}/daily?days=${days}`);
+    const params = new URLSearchParams({ days: String(days) });
+    if (date) params.set("date", date);
+    const response = await fetch(`${apiBase}/api/items/${itemId}/daily?${params}`);
     if (!response.ok) throw new Error("Daily stats unavailable");
     const payload = await response.json();
     dailyStatsCache.set(key, Array.isArray(payload.rows) ? payload.rows : []);
@@ -904,6 +921,8 @@ function render() {
 }
 
 async function loadApiData() {
+  els.status.lastChild.textContent = " Загружаю сводку...";
+
   try {
     const response = await fetch(`${apiBase}/api/dashboard`);
     if (!response.ok) throw new Error("API unavailable");
@@ -911,9 +930,12 @@ async function loadApiData() {
     if (Array.isArray(payload.rows) && payload.rows.length) {
       rows = payload.rows;
       els.status.lastChild.textContent = " Avito API подключен";
+      return;
     }
+
+    els.status.lastChild.textContent = " Данные Avito не получены";
   } catch {
-    els.status.lastChild.textContent = " Локальные данные";
+    els.status.lastChild.textContent = " Ошибка подключения Avito";
   }
 }
 
@@ -967,6 +989,15 @@ els.itemDetail.addEventListener("change", (event) => {
   const dailySelect = event.target.closest("[data-daily-days]");
   if (dailySelect) {
     dailyDays = Number(dailySelect.value) || 30;
+    dailyDate = "";
+    const item = items.find((candidate) => String(candidate.id) === String(selectedItemId));
+    renderItemDetail(item);
+    return;
+  }
+
+  const dailyDateInput = event.target.closest("[data-daily-date]");
+  if (dailyDateInput) {
+    dailyDate = dailyDateInput.value;
     const item = items.find((candidate) => String(candidate.id) === String(selectedItemId));
     renderItemDetail(item);
     return;
@@ -986,5 +1017,7 @@ els.itemDetail.addEventListener("change", (event) => {
 window.addEventListener("resize", render);
 
 render();
-loadApiData().finally(render);
-loadItems().finally(renderItems);
+loadApiData().finally(() => {
+  render();
+  loadItems().finally(renderItems);
+});

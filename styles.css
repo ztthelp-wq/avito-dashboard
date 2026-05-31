@@ -651,7 +651,15 @@ canvas {
   gap: 5px;
 }
 
-.daily-head select {
+.daily-controls {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.daily-head select,
+.daily-head input {
   min-width: 108px;
   padding: 8px 10px;
 }

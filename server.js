@@ -303,7 +303,11 @@ async function fetchStatsChunk(token, userId, itemIds, range, periodGrouping = "
   }
 }
 
-function getDailyRange(days) {
+function getDailyRange(days, date = "") {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { from: date, to: date };
+  }
+
   const to = new Date();
   const from = new Date();
   from.setDate(from.getDate() - Math.max(1, days - 1));
@@ -314,19 +318,19 @@ function getDailyRange(days) {
   };
 }
 
-async function loadItemDailyStats(itemId, days) {
+async function loadItemDailyStats(itemId, days, date = "") {
   const token = await getAvitoToken();
   const userId = await getUserId(token);
 
   if (!token || !userId) {
-    return { itemId, days, rows: [] };
+    return { itemId, days, date, rows: [] };
   }
 
   const data = await fetchStatsChunk(
     token,
     userId,
     [Number(itemId)],
-    getDailyRange(days),
+    getDailyRange(days, date),
     "day",
   );
   const item = (data.result?.items || []).find(
@@ -348,7 +352,7 @@ async function loadItemDailyStats(itemId, days) {
     })
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  return { itemId: Number(itemId), days, rows };
+  return { itemId: Number(itemId), days, date, rows };
 }
 
 function aggregateMonthlyStats(statsByItem) {
@@ -624,10 +628,11 @@ const server = http.createServer(async (req, res) => {
     const dailyMatch = url.pathname.match(/^\/api\/items\/(\d+)\/daily$/);
     if (dailyMatch) {
       const days = Math.min(90, Math.max(7, Number(url.searchParams.get("days")) || 30));
+      const date = url.searchParams.get("date") || "";
       const itemId = dailyMatch[1];
       const data = await cached(
-        `daily:${itemId}:${days}`,
-        () => loadItemDailyStats(itemId, days),
+        `daily:${itemId}:${days}:${date}`,
+        () => loadItemDailyStats(itemId, days, date),
       );
       return sendJson(res, 200, data);
     }
