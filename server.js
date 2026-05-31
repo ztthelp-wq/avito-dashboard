@@ -155,16 +155,16 @@ async function getAvitoItems(token) {
   const itemsById = new Map();
   const perPage = 99;
   const statuses = [
-    { name: "active", maxPages: 20 },
-    { name: "old", maxPages: 10 },
+    { name: "active" },
+    { name: "old" },
   ];
 
   for (const status of statuses) {
-    for (let page = 1; page <= status.maxPages; page += 1) {
+    for (let page = 1; ; page += 1) {
       let data;
 
       try {
-        data = await avitoFetch(
+        data = await avitoFetchWithRetry(
           `/core/v1/items?per_page=${perPage}&page=${page}&status=${status.name}`,
           token,
         );
@@ -185,6 +185,27 @@ async function getAvitoItems(token) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function avitoFetchWithRetry(path, token, options = {}, attempts = 4) {
+  let lastError;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await avitoFetch(path, token, options);
+    } catch (error) {
+      lastError = error;
+      const isRateLimited = error.message.includes("Avito request failed: 429");
+
+      if (!isRateLimited || attempt === attempts - 1) {
+        throw error;
+      }
+
+      await sleep(1000 * 2 ** attempt);
+    }
+  }
+
+  throw lastError;
 }
 
 function getStatsRange() {
@@ -254,7 +275,7 @@ async function getItemStats(token, userId, itemIds, range = getStatsRange()) {
   return statsByItem;
 }
 
-async function fetchStatsChunk(token, userId, itemIds, range) {
+async function fetchStatsChunk(token, userId, itemIds, range, periodGrouping = "month") {
   try {
     return await avitoFetch(`/stats/v1/accounts/${userId}/items`, token, {
       method: "POST",
@@ -262,7 +283,7 @@ async function fetchStatsChunk(token, userId, itemIds, range) {
         dateFrom: range.from,
         dateTo: range.to,
         itemIds,
-        periodGrouping: "month",
+        periodGrouping,
         fields: ["uniqViews", "uniqContacts", "uniqFavorites"],
       }),
     });
@@ -280,6 +301,54 @@ async function fetchStatsChunk(token, userId, itemIds, range) {
       },
     };
   }
+}
+
+function getDailyRange(days) {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - Math.max(1, days - 1));
+
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  };
+}
+
+async function loadItemDailyStats(itemId, days) {
+  const token = await getAvitoToken();
+  const userId = await getUserId(token);
+
+  if (!token || !userId) {
+    return { itemId, days, rows: [] };
+  }
+
+  const data = await fetchStatsChunk(
+    token,
+    userId,
+    [Number(itemId)],
+    getDailyRange(days),
+    "day",
+  );
+  const item = (data.result?.items || []).find(
+    (candidate) => Number(candidate.itemId) === Number(itemId),
+  );
+
+  const rows = (item?.stats || [])
+    .map((stat) => {
+      const views = stat.uniqViews || 0;
+      const contacts = stat.uniqContacts || 0;
+
+      return {
+        date: stat.date.slice(0, 10),
+        views,
+        contacts,
+        favorites: stat.uniqFavorites || 0,
+        conversion: views ? Math.round((contacts / views) * 100) : 0,
+      };
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  return { itemId: Number(itemId), days, rows };
 }
 
 function aggregateMonthlyStats(statsByItem) {
@@ -549,6 +618,17 @@ const server = http.createServer(async (req, res) => {
       if (!data?.items?.length) {
         return sendJson(res, 200, { items: [], source: "local-fallback" });
       }
+      return sendJson(res, 200, data);
+    }
+
+    const dailyMatch = url.pathname.match(/^\/api\/items\/(\d+)\/daily$/);
+    if (dailyMatch) {
+      const days = Math.min(90, Math.max(7, Number(url.searchParams.get("days")) || 30));
+      const itemId = dailyMatch[1];
+      const data = await cached(
+        `daily:${itemId}:${days}`,
+        () => loadItemDailyStats(itemId, days),
+      );
       return sendJson(res, 200, data);
     }
 

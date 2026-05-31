@@ -511,6 +511,27 @@ canvas {
   font-weight: 900;
 }
 
+.item-status {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  vertical-align: 2px;
+}
+
+.item-status.active {
+  color: var(--green);
+  background: rgba(46, 143, 95, 0.1);
+}
+
+.item-status.old {
+  color: var(--muted);
+  background: #edf1ef;
+}
+
 .item-subline {
   margin-top: 4px;
   color: var(--muted);
@@ -594,6 +615,77 @@ canvas {
 .detail-months {
   display: grid;
   gap: 8px;
+}
+
+.daily-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.daily-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: end;
+}
+
+.daily-head span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.daily-head strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 16px;
+}
+
+.daily-head label {
+  display: grid;
+  gap: 5px;
+}
+
+.daily-head select {
+  min-width: 108px;
+  padding: 8px 10px;
+}
+
+.daily-table {
+  display: grid;
+  max-height: 330px;
+  overflow: auto;
+}
+
+.daily-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) repeat(4, minmax(58px, auto));
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.daily-row strong {
+  text-align: right;
+}
+
+.daily-labels {
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.daily-labels span:not(:first-child) {
+  text-align: right;
 }
 
 .cost-panel {
@@ -790,6 +882,11 @@ tbody tr:nth-child(even) {
     .cost-inputs,
     .cost-breakdown {
     grid-template-columns: 1fr;
+  }
+
+  .daily-head {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .item-row {

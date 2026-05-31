@@ -288,6 +288,7 @@ const els = {
   ratingRows: document.querySelector("#ratingRows"),
   dataRows: document.querySelector("#dataRows"),
   itemSearch: document.querySelector("#itemSearch"),
+  itemStatus: document.querySelector("#itemStatusFilter"),
   selectAllItems: document.querySelector("#selectAllItems"),
   clearSelection: document.querySelector("#clearSelection"),
   selectedCount: document.querySelector("#selectedCount"),
@@ -305,6 +306,9 @@ let items = fallbackItems;
 let selectedItemId = null;
 const selectedItemIds = new Set();
 const costOverrides = JSON.parse(localStorage.getItem("avitoCostOverrides") || "{}");
+const dailyStatsCache = new Map();
+const dailyStatsLoading = new Set();
+let dailyDays = 30;
 
 function sum(list, key) {
   return list.reduce((total, row) => total + (Number(row[key]) || 0), 0);
@@ -610,7 +614,10 @@ function itemMatchesSearch(item, query) {
 
 function visibleItems() {
   const query = els.itemSearch.value || "";
-  return items.filter((item) => itemMatchesSearch(item, query));
+  return items.filter((item) => {
+    const statusMatches = els.itemStatus.value === "all" || item.status === els.itemStatus.value;
+    return statusMatches && itemMatchesSearch(item, query);
+  });
 }
 
 function getSelectedItems() {
@@ -670,6 +677,11 @@ function renderItemDetail(item) {
   }
 
   const cost = getItemCost(item);
+  const dailyKey = `${item.id}:${dailyDays}`;
+  const dailyRows = dailyStatsCache.get(dailyKey);
+  const daily = dailyRows
+    ? renderDailyRows(dailyRows)
+    : '<span class="empty-state">Загружаю статистику по дням...</span>';
   const monthly = item.monthly?.length
     ? item.monthly
         .map(
@@ -729,8 +741,85 @@ function renderItemDetail(item) {
         <div><span>Цена контакта</span><strong>${money(cost.costPerContact)}</strong></div>
       </div>
     </div>
+    <div class="daily-panel">
+      <div class="daily-head">
+        <div>
+          <span>Аналитика по дням</span>
+          <strong>Последние ${dailyDays} дней</strong>
+        </div>
+        <label>
+          <span>Период</span>
+          <select data-daily-days>
+            ${[7, 30, 60, 90]
+              .map((days) => `<option value="${days}" ${days === dailyDays ? "selected" : ""}>${days} дней</option>`)
+              .join("")}
+          </select>
+        </label>
+      </div>
+      <div class="daily-table">
+        <div class="daily-row daily-labels">
+          <span>Дата</span>
+          <span>Просмотры</span>
+          <span>Контакты</span>
+          <span>Избранное</span>
+          <span>CV</span>
+        </div>
+        ${daily}
+      </div>
+    </div>
     <div class="detail-months">${monthly}</div>
   `;
+
+  loadDailyStats(item.id, dailyDays);
+}
+
+function renderDailyRows(rows) {
+  if (!rows.length) {
+    return '<span class="empty-state">За выбранный период данных нет</span>';
+  }
+
+  return rows
+    .map(
+      (row) => `
+        <div class="daily-row">
+          <span>${formatDailyDate(row.date)}</span>
+          <strong>${number(row.views)}</strong>
+          <strong>${number(row.contacts)}</strong>
+          <strong>${number(row.favorites)}</strong>
+          <strong>${percent(row.conversion)}</strong>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function formatDailyDate(value) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+async function loadDailyStats(itemId, days) {
+  const key = `${itemId}:${days}`;
+  if (dailyStatsCache.has(key) || dailyStatsLoading.has(key)) return;
+
+  dailyStatsLoading.add(key);
+
+  try {
+    const response = await fetch(`${apiBase}/api/items/${itemId}/daily?days=${days}`);
+    if (!response.ok) throw new Error("Daily stats unavailable");
+    const payload = await response.json();
+    dailyStatsCache.set(key, Array.isArray(payload.rows) ? payload.rows : []);
+  } catch {
+    dailyStatsCache.set(key, []);
+  } finally {
+    dailyStatsLoading.delete(key);
+    if (String(selectedItemId) === String(itemId)) {
+      const item = items.find((candidate) => String(candidate.id) === String(itemId));
+      renderItemDetail(item);
+    }
+  }
 }
 
 function renderItems() {
@@ -760,7 +849,10 @@ function renderItems() {
             } />
           </label>
           <button type="button" class="item-main" data-open-id="${item.id}">
-            <span class="item-title">${item.title}</span>
+            <span class="item-title">
+              ${item.title}
+              <i class="item-status ${item.status}">${item.status === "active" ? "Активно" : "Архив"}</i>
+            </span>
             <span class="item-subline">ID ${item.id} · ${item.category} · ${item.address}</span>
           </button>
           <div class="item-numbers">
@@ -843,6 +935,7 @@ els.period.addEventListener("change", render);
 els.month.addEventListener("change", render);
 els.chartMetric.addEventListener("change", render);
 els.itemSearch.addEventListener("input", renderItems);
+els.itemStatus.addEventListener("change", renderItems);
 els.selectAllItems.addEventListener("click", () => {
   visibleItems().forEach((item) => selectedItemIds.add(String(item.id)));
   renderItems();
@@ -871,6 +964,14 @@ els.itemsList.addEventListener("click", (event) => {
   renderItems();
 });
 els.itemDetail.addEventListener("change", (event) => {
+  const dailySelect = event.target.closest("[data-daily-days]");
+  if (dailySelect) {
+    dailyDays = Number(dailySelect.value) || 30;
+    const item = items.find((candidate) => String(candidate.id) === String(selectedItemId));
+    renderItemDetail(item);
+    return;
+  }
+
   const input = event.target.closest("[data-cost-field]");
   if (!input) return;
 
