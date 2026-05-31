@@ -884,8 +884,11 @@ function renderItems() {
     )
     .join("");
 
+  const detailItem =
+    list.find((item) => String(item.id) === String(selectedItemId)) || list[0];
+  selectedItemId = detailItem.id;
   renderSelectedSummary();
-  renderItemDetail(items.find((item) => String(item.id) === String(selectedItemId)) || list[0]);
+  renderItemDetail(detailItem);
 }
 
 function render() {
