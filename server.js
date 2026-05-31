@@ -151,21 +151,17 @@ async function getUserId(token) {
   return self.id || self.user_id;
 }
 
-async function getAvitoItems(token) {
+async function getAvitoItems(token, requestedStatuses = ["active", "old"]) {
   const itemsById = new Map();
   const perPage = 99;
-  const statuses = [
-    { name: "active" },
-    { name: "old" },
-  ];
 
-  for (const status of statuses) {
+  for (const status of requestedStatuses) {
     for (let page = 1; ; page += 1) {
       let data;
 
       try {
         data = await avitoFetchWithRetry(
-          `/core/v1/items?per_page=${perPage}&page=${page}&status=${status.name}`,
+          `/core/v1/items?per_page=${perPage}&page=${page}&status=${status}`,
           token,
         );
       } catch (error) {
@@ -173,7 +169,7 @@ async function getAvitoItems(token) {
       }
 
       const pageItems = data.resources || data.items || [];
-      pageItems.forEach((item) => itemsById.set(Number(item.id), { ...item, status: status.name }));
+      pageItems.forEach((item) => itemsById.set(Number(item.id), { ...item, status }));
 
       if (pageItems.length < perPage) break;
       await sleep(250);
@@ -509,7 +505,7 @@ async function getSpendings(token, userId, itemIds, range = getStatsRange()) {
   }
 }
 
-async function loadItemRows() {
+async function loadItemRows(status = "active") {
   const token = await getAvitoToken();
   const userId = await getUserId(token);
 
@@ -517,7 +513,7 @@ async function loadItemRows() {
     return null;
   }
 
-  const items = await getAvitoItems(token);
+  const items = await getAvitoItems(token, [status]);
   const range = getStatsRange();
   const statsByItem = await getItemStats(
     token,
@@ -618,7 +614,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === "/api/items") {
-      const data = await cached("items", loadItemRows);
+      const status = url.searchParams.get("status") === "old" ? "old" : "active";
+      const data = await cached(`items:${status}`, () => loadItemRows(status));
       if (!data?.items?.length) {
         return sendJson(res, 200, { items: [], source: "local-fallback" });
       }

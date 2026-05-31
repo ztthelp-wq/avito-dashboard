@@ -308,6 +308,8 @@ const selectedItemIds = new Set();
 const costOverrides = JSON.parse(localStorage.getItem("avitoCostOverrides") || "{}");
 const dailyStatsCache = new Map();
 const dailyStatsLoading = new Set();
+const loadedItemStatuses = new Set();
+const loadingItemStatuses = new Set();
 let dailyDays = 30;
 let dailyDate = "";
 
@@ -939,17 +941,39 @@ async function loadApiData() {
   }
 }
 
-async function loadItems() {
-  try {
-    const response = await fetch(`${apiBase}/api/items`);
-    if (!response.ok) throw new Error("Items unavailable");
-    const payload = await response.json();
-    if (Array.isArray(payload.items) && payload.items.length) {
-      items = payload.items;
-      selectedItemId = items[0].id;
+async function loadItems(status = "active") {
+  const statuses = status === "all" ? ["active", "old"] : [status];
+
+  for (const currentStatus of statuses) {
+    if (loadedItemStatuses.has(currentStatus) || loadingItemStatuses.has(currentStatus)) continue;
+    loadingItemStatuses.add(currentStatus);
+
+    try {
+      const response = await fetch(`${apiBase}/api/items?status=${currentStatus}`);
+      if (!response.ok) throw new Error("Items unavailable");
+      const payload = await response.json();
+      if (Array.isArray(payload.items)) {
+        items = [
+          ...items.filter((item) => item.status !== currentStatus),
+          ...payload.items,
+        ];
+        loadedItemStatuses.add(currentStatus);
+        if (!selectedItemId && items.length) selectedItemId = items[0].id;
+      }
+    } catch {
+      if (!items.length) items = fallbackItems;
+    } finally {
+      loadingItemStatuses.delete(currentStatus);
+      renderItems();
     }
-  } catch {
-    items = fallbackItems;
+  }
+}
+
+async function loadAllItems() {
+  try {
+    await loadItems(els.itemStatus.value);
+  } finally {
+    renderItems();
   }
 }
 
@@ -957,7 +981,10 @@ els.period.addEventListener("change", render);
 els.month.addEventListener("change", render);
 els.chartMetric.addEventListener("change", render);
 els.itemSearch.addEventListener("input", renderItems);
-els.itemStatus.addEventListener("change", renderItems);
+els.itemStatus.addEventListener("change", () => {
+  renderItems();
+  loadAllItems();
+});
 els.selectAllItems.addEventListener("click", () => {
   visibleItems().forEach((item) => selectedItemIds.add(String(item.id)));
   renderItems();
@@ -1019,5 +1046,5 @@ window.addEventListener("resize", render);
 render();
 loadApiData().finally(() => {
   render();
-  loadItems().finally(renderItems);
+  loadItems("active").finally(renderItems);
 });
