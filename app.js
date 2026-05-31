@@ -985,4 +985,6 @@ els.itemDetail.addEventListener("change", (event) => {
 });
 window.addEventListener("resize", render);
 
-Promise.all([loadApiData(), loadItems()]).finally(render);
+render();
+loadApiData().finally(render);
+loadItems().finally(renderItems);
